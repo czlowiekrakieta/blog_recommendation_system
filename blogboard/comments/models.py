@@ -47,11 +47,8 @@ class Comment(models.Model):
         self.downs = z[-1]
         self.save()
 
-
-
-
     class Meta:
-        ordering = ['-timestamp']
+        ordering = ['-binom']
 
 
 class Vote(models.Model):

@@ -19,7 +19,7 @@ def create_user_matrix():
             matrix[i, ] = np.hstack((user.id, np.mean(features*ratings, axis=0) ) )
         except ValueError:
             matrix[i, ] = np.hstack((user.id, np.zeros(len(fields)-1)))
-        d[i] = user.id
+        d[user.id] = i
     return matrix, d
 
 def create_blog_matrix():
@@ -46,12 +46,15 @@ def followed_users_liked(userfollowings):
 def create_corr_matrix(blog_matrix):
     return np.corrcoef(blog_matrix[:, 1:]), blog_matrix[:, 0]
 
-def similar_blogs(id, corr_matrix, id_list, blog_dictionary):
-    nr = blog_dictionary[id]
+def similar(id, corr_matrix, id_list, dictionary, what):
+    nr = dictionary[id]
     r_sorted = np.argsort(corr_matrix[nr, :])[::-1][1:]
     ids = np.asarray(id_list)[r_sorted]
 
-    return Blog.objects.filter(id__in = ids)
+    if what=='blogs':
+        return Blog.objects.filter(id__in = ids)
+    if what=='users':
+        return User.objects.filter(id__in = ids)
 
 def users_who_liked_also_liked():
     pass

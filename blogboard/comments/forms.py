@@ -18,7 +18,6 @@ class CommentForm(forms.ModelForm):
 
 class VoteForm(forms.ModelForm):
     vote = forms.ChoiceField(choices=votes)
-    path = forms.
 
     class Meta:
         model = Vote
