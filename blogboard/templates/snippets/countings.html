@@ -1,0 +1,122 @@
+<script>
+    function showStuff(id) {
+
+        var el_style = document.getElementById(id).style.display
+        if ( el_style == 'block' ) {
+            document.getElementById(id).style.display = 'none';
+        } else {
+            document.getElementById(id).style.display = 'block';
+        }
+    }
+
+</script>
+          <table>
+                <caption>Legend for barplots</caption>
+            <tr><th>Number</th><th>Meaning</th></tr>
+            <tr><td>1</td><td>not at all</td></tr>
+            <tr><td>2</td><td>a bit</td></tr>
+            <tr><td>3</td><td>evenly with other topics</td></tr>
+            <tr><td>4</td><td>dominates others</td></tr>
+            <tr><td>5</td><td>speaks only about it</td></tr>
+            </table>
+
+
+
+</br>
+
+<div style="width: 100%; float:clear"><a href="#" onclick="showStuff('plots'); return false">show/hide plots</a></div>
+<div id="plots" style="display: block;">
+    <div class="table">
+        <div class="row">
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="politics"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="soft_science"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="hard_science"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="fashion"></canvas>
+            </div>
+        </div>
+        <div class="row">
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="travel"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="culture"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="tech"></canvas>
+            </div>
+            <div class="column" style="width: 400; height: 300">
+                <canvas id="sports"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<div style="float:right; width: 400; height: 300">
+            <canvas id="rating"></canvas>
+        </div>
+<script>
+    {% for cat, val in countings.items %}
+
+        var {{ cat }} = document.getElementById("{{ cat }}").getContext("2d");
+        var barChart = new Chart({{ cat }}, {
+            type: 'bar',
+            data: {
+            labels: [1,2,3,4,5],
+            datasets: [
+                {
+                    label: '{{ cat }}',
+                    backgroundColor: 'rgba(255,190,25,1)',
+                    borderColor: 'rgba(0,0,0,1)',
+                    data: {{ val }}
+                }
+            ] },
+            options: {
+                scales: {
+                    yAxes: [{
+                        display: false,
+                        stacked: true,
+                        min: 0,
+                        max: {{ maximum }},
+                    }]
+                }
+        }
+
+         });
+
+    {% endfor %}
+</script>
+<script>
+
+    var ratings = document.getElementById("rating").getContext("2d");
+    var barChart = new Chart(ratings, {
+            type: 'bar',
+            data: {
+            labels: ['disliked it', 'dull', 'liked it'],
+            datasets: [
+                {
+                    label: 'ratings',
+                    backgroundColor: 'rgba(255,190,25,1)',
+                    borderColor: 'rgba(0,0,0,1)',
+                    data: {{ g_rating }}
+                }
+            ] },
+            options: {
+                scales: {
+                    yAxes: [{
+                        stacked: true,
+                        min: 0,
+
+                    }]
+                }
+        }
+
+         });
+
+</script>
+

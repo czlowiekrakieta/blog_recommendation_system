@@ -1,0 +1,18 @@
+{% if request.user.is_authenticated %}
+
+<a href="{% url 'accounts:user-detail' request.user.id %}">Logged as {{ request.user.username }}</a>
+
+<form method="POST" action="{% url 'accounts:logout' %}" enctype="'multipart/form-data">{% csrf_token %}
+    {{ logout_form.as_p }}
+    <input type="submit" value="Logout">
+</form>
+{% else %}
+
+<form method="POST" action="{% url 'accounts:login' %}" enctype="'multipart/form-data">{% csrf_token %}
+    {{ login_form.as_p }}
+    <input type="submit" value="Login">
+</form>
+
+<a href="{% url 'accounts:register' %}">Sign up</a>
+
+{% endif %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<head>
+    <title>{{ object.name }}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.3.0/Chart.bundle.js" type="text/javascript"></script>
+
+</head>
+
+<body>
+<div id="main_container">
+<h1>{{ object.name }}</h1>
+<p>{{ object.author }}</p>
+<p>{{ object.description }}</p>
+
+</br>
+
+<div class="login-logout">
+{% include 'snippets/login_logout.html' %}
+</div>
+
+{% if user_rate %}
+<p> You've rated as: {{ user_rate.general_ratings }} </p>
+{% endif %}
+
+    Similar blogs:</br>
+    {% if similar %}
+    {% for el in similar %}
+        {{ el.name }} </br>
+    {% endfor %}
+{% endif %}
+
+{% if request.user.is_authenticated %}
+
+{% if logged_user not in followers %}
+OBSERWACJI BRAK
+<a href = "{% url 'blogs:blog-follow' object.id %}">Follow</a> </br>
+{% else %}
+JUZ TO OBSERWUJESZ KMIOCIE
+<a href = "{% url 'blogs:blog-unfollow' object.id %}">Unfollow</a> </br>
+{% endif %}
+
+
+    </br>
+
+Rate blog:
+<form id="rate_form" method="POST" action="{% url 'blogs:blog-rate' object.id %}" enctype="'multipart/form-data">{% csrf_token %}
+    {{ rate_form.as_p }}
+    <input id="rate_input" type="submit" value="rate">
+</form>
+
+{% endif %}
+
+{% include 'snippets/countings.html' %}
+
+
+{% if user_rate %}
+<p> You've rated as: {{ user_rate.general_ratings }} </p>
+{% endif %}
+
+
+
+
+</br>
+Sledzacy bloga:
+{% for us in followers %}
+
+<p>Uzytkownik: {{ us.user }} </p>
+
+{% endfor %}
+
+</br>
+</br>
+
+
+</br>
+<div id="write_comment">
+Write comment:
+<form method="POST" action="{% url 'blogs:blog-comment' object.id %}" enctype="'multipart/form-data">{% csrf_token %}
+    {{ comment_form.as_p }}
+    <input type="submit" value="write comment">
+</form>
+</div>
+
+Comments - <a href="{% url 'comments:view-all' object.id %}">view all</a>:
+{% if comments %}:
+{% include 'snippets/comments_snippet.html' %}
+
+{% else %}
+No comments to display
+{% endif %}
+
+</body>
+
+{% endblock %}

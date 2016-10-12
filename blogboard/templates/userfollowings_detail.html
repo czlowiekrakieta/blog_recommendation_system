@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+
+{% include 'snippets/login_logout.html' %}
+
+<head>
+    <title>{{ user_iq.username }}</title>
+</head>
+
+<p>Znajdujesz sie na stronie poswieconej</p>
+{{ user_iq.username }}
+
+<p>Milej zabawy</p>
+Blogs he follows
+{% for blog in followingblogs %}
+<a href="{% url 'blogs:blog-detail' blog.id %}">{{ blog.name }} </a></br>
+{% endfor %}
+
+</br> </br>
+
+{% if logged and current_user.user != user_iq %}
+
+{% if current_user not in followers %}
+        OBSERWACJI BRAK
+        <a href = "{% url 'accounts:user-follow' user_iq.id %}">Follow</a> </br>
+{% else %}
+        JUZ TO OBSERWUJESZ KMIOCIE
+        <a href = "{% url 'accounts:user-unfollow' user_iq.id %}">Unfollow</a> </br>
+{% endif %}
+{% endif %}
+
+
+
+</br>
+People he follows
+</br>
+{% for us in followingusers %}
+{{ us.username }}</br>
+{% endfor %}
+
+</br>
+Followers
+</br>
+
+{% for us in followers %}
+{{ us.user.username }}</br>
+{% endfor %}
+
+</br>
+
+{% for el in show_list %}
+{% if el.class_str == 'rating' %}
+    {{ user_iq.username }} rated {{ el.blog.name }} at {{ el.general_ratings }} {{ el.timestamp|timesince }} ago </br>
+{% else %}
+    {{ user_iq.username }} commented {{ el.blog.name }} with {{ el.content }} {{ el.timestamp|timesince }} ago </br>
+{% endif %}
+
+{% endfor %}
+
+{% endblock %}

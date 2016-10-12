@@ -1,0 +1,68 @@
+.table{
+  display:table;
+  width:auto;
+  background-color:#eee;
+  border:1px solid  #666666;
+  border-spacing:5px;/*cellspacing:poor IE support for  this*/
+  margin:auto;
+}
+.row{
+  display:table-row;
+  width:auto;
+  clear:both;
+}
+.column{
+  float:left;/*fix for  buggy browsers*/
+  display:table-column;
+  width:200px;
+  background-color:#ccc;
+}
+
+.login-logout{
+  float:right;
+  background-color:#ccc;
+}
+
+#rate_input {
+
+}
+
+#rate_form {
+
+}
+
+#main_container {
+  width:80%;
+  margin:auto;
+  padding:10px;
+}
+
+#ratings_bars {
+  margin:auto;
+}
+
+#comments_container {
+  margin:auto;
+  width:90%;
+}
+
+.whole_comment {
+  background-color:#ccc;
+  float:left;
+  margin:auto;
+  align:center;
+}
+
+.comment_info {
+  width:20%;
+}
+
+.comment_content {
+  width:25%;
+  text-align:right;
+}
+
+.comment_vote {
+  width:25%;
+  float:right;
+}

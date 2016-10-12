@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div id="main_container">
+<a href="{% url 'blogs:blog-detail' blog.id %} "><h1>{{ blog.name }}</h1></a>
+<p>{{ blog.author }}</p>
+<p>{{ blog.description }}</p>
+
+
+{% include 'snippets/comments_snippet.html' %}
+
+<div class="pagination">
+    {% if comments.has_previous %}
+        <a href="?comment={{ comments.previous_comment_number }}">Previous page</a>
+    {% endif %}
+
+    </br>
+    Page {{ comments.number }} from {{ comments.paginator.num_pages }}
+    </br>
+
+    {% if comments.has_next %}
+        <a href="?comment={{ comments.next_comment_number }}">Next page</a>
+    {% endif %}
+</div>
+</div>
+{% endblock %}

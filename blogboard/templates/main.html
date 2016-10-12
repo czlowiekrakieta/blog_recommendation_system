@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+{% include 'snippets/login_logout.html' %}
+
+<h1>Main page</h1>
+
+{% if logged %}
+Followed users
+{% endif %}
+{% if followingusers %}
+    {% for us in followingusers %}
+        {{ us.username }} </br>
+    {% endfor %}
+{% endif %}
+
+</br>
+</br>
+
+{% if logged %}
+Followed blogs </br>
+{% endif %}
+{% for blog in blogs_iq %}
+<a href="{% url 'blogs:blog-detail' blog.id %}">{{ blog.name }} </a></br>
+{% endfor %}
+</br>
+
+{% if logged %}
+    Followed users liked: </br>
+    {% for el in foll_likes %}
+        {{ el.name }} </br>
+    {% endfor %}
+    </br>
+
+    Your feed: </br>
+    {% for el in show_list %}
+        {% if el.class_str == 'rating' %}
+            {{ el.user.username }} rated {{ el.blog.name }} at {{ el.general_ratings }} {{ el.timestamp|timesince }} ago </br>
+        {% else %}
+            {{ el.user.username }} commented {{ el.blog.name }} with {{ el.content }} {{ el.timestamp|timesince }} ago </br>
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
+<h2>Most popular blogs</h2>
+{% for el in popular %}
+    <a href="{% url 'blogs:blog-detail' el.id %}">{{ el.name }} </a></br>
+{% endfor %}
+
+
+<h3>Most popular in seperate categories</h3>
+{% for cat, elements in cat_popularity.items %}
+    <h4> {{ cat }} </h4> </br>
+    {% for el in elements %}
+        <a href="{% url 'blogs:blog-detail' el.id %}">{{ el.name }} </a></br>
+    {% endfor %}
+</br>
+{% endfor %}
+
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h1>enter blog to the database</h1>
+
+<form method="POST" action="" enctype="'multipart/form-data">{% csrf_token %}
+    {{ newblog.as_p }}
+    <input type="submit" value="enter blog to database">
+</form>
+
+{% endblock %}

@@ -1,0 +1,19 @@
+<div id="comments_container">
+{% for comm in comments %}:
+    {{ comm.user.username }} on {{ comm.timestamp|timesince }}
+    <span>{{ comm.content }}</span> {{ comm.ups }} upvotes, {{ comm.downs }} downvotes </br>
+
+        <span><form method="POST" action="{% url 'comments:comment-vote' comm.id %}" enctype="'multipart/form-data">{% csrf_token %}
+        {{ voteform.as_p }}
+        <input type="submit" value="vote"></form>
+        </span>
+
+    </br>
+
+</br>
+
+{% endfor %}
+</div>
+</div>
+
+
