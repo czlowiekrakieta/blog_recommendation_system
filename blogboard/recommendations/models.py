@@ -42,8 +42,6 @@ class ManageCalculations(models.Model):
             r.similar.add(*sim)
 
 
-
-
 class RecommendationUser(models.Model):
     user = models.OneToOneField(UserFollowings)
     similar = models.ManyToManyField(User, related_name='similar')
@@ -54,10 +52,11 @@ class RecommendationBlog(models.Model):
     #vector = ArrayField(models.FloatField(null=True, blank=True), len(fields)-1, null=True)
     similar = models.ManyToManyField(Blog, related_name='similar')
 
+
 class MostPopularByCat(models.Model):
     category = models.CharField(max_length=30)
     last_eval = models.DateTimeField(default=pytz.UTC.localize(timezone.datetime(2010, 1, 1)))
-    blogs = models.ManyToManyField(Blog)
+    blogs = models.ManyToManyField(Blog, related_name='pop_blogs')
 
     def __str__(self):
         return self.category
@@ -73,7 +72,6 @@ class MostPopularByCat(models.Model):
             things = most_popular()
         else:
             things = most_popular_category(category=self.category)
-
         if self.blogs.all().count():
             self.blogs.remove(*self.blogs.all())
         self.blogs.add(*things)

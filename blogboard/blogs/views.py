@@ -4,6 +4,7 @@ import os
 from django.db.models import Count
 from .forms import RatingForm, NewBlogForm
 from recommendations import math
+from recommendations.models import ManageCalculations, RecommendationBlog, RecommendationUser, MostPopularByCat
 from comments.forms import CommentForm, VoteForm
 from accounts.forms import UserLoginForm, UserLogoutForm
 from blogs.models import fields, Rating
@@ -11,11 +12,10 @@ from comments.models import Comment
 from accounts.views import merge_timestamp
 from django.db.models import Count
 from time import time
+from blogboard.common import blog_and_user
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
 
 
-def blog_and_user(request, pk=None):
-    return request.user, get_object_or_404(Blog, id=pk)
 
 def blog_detail(request, pk=None):
 
@@ -30,6 +30,8 @@ def blog_detail(request, pk=None):
 
     login_form.set_path(path)
     logout_form.set_path(path)
+    comment_form.set_path(path)
+    voteform.set_path(path)
     s = time()
     countings = list(map(lambda x: Rating.objects.filter(blog=instance).values(x).annotate(Count(x)), fields))
     s = time()
@@ -47,21 +49,20 @@ def blog_detail(request, pk=None):
 
     g_rating = countings.pop("general_ratings")
 
-    blog_matrix, blog_dictionary = math.create_blog_matrix()
-    corr_matrix, blogs_ids = math.create_corr_matrix(blog_matrix)
-    similar = math.similar_blogs(instance.id, corr_matrix, blogs_ids, blog_dictionary)
-    print(similar)
+    mc = get_object_or_404(ManageCalculations, pk=1)
+    if not mc.was_evaluated_recently():
+        mc.calc_blogs()
+        mc.calc_users()
+
+    sim = RecommendationBlog.objects.get(blog=instance)
+    similar = sim.similar.all()
+
     comments = instance.comment_set.all()
-    for comm in comments:
-        comm.set_binom()
-
-    comments.order_by('binom')
-
-
+    print(comments)
     context_data = {
         "rate_form": rate_form,
         "voteform": voteform,
-        "object": instance,
+        "blog": instance,
         "ratings": instance.rating_set.all(),
         "followers": instance.userfollowings_set.all(),
         "comments": comments[:10],
@@ -85,8 +86,6 @@ def blog_detail(request, pk=None):
 
     else:
         context_data['login_form'] = login_form
-
-
 
     return render(request, templates_location+"/blog_detail.html", context_data)
 
@@ -196,19 +195,30 @@ def main_page(request):
             'login_form': login_form
         }
 
-    popular = math.most_popular()
-    if len(popular) > 5:
-        popular = popular[:5]
+    # popular = math.most_popular()
+    # if len(popular) > 5:
+    #     popular = popular[:5]
+    #
+    # context_data['popular'] = popular
+    # dict_categories_popularity = {}
+    # for f in fields:
+    #     dict_categories_popularity[f] = math.most_popular_category(f)
+    #     if len(dict_categories_popularity[f]) > 5:
+    #         dict_categories_popularity[f] = dict_categories_popularity[f][:5]
+    #
+    #
+    # context_data['cat_popularity'] = dict_categories_popularity
 
-    context_data['popular'] = popular
-    dict_categories_popularity = {}
+    s = []
     for f in fields:
-        dict_categories_popularity[f] = math.most_popular_category(f)
-        if len(dict_categories_popularity[f]) > 5:
-            dict_categories_popularity[f] = dict_categories_popularity[f][:5]
+        mp = MostPopularByCat.objects.get(category=f)
+        if not mp.was_evaluated_recently():
+            mp.evaluate()
+        s.append(mp.blogs.all())
 
-
-    context_data['cat_popularity'] = dict_categories_popularity
+    context_data['popular'] = s[0]
+    dict_pop = dict(zip(fields[1:], s[1:]))
+    context_data['cat_popularity'] = dict_pop
 
 
     return render(request, templates_location+"/main.html", context_data)

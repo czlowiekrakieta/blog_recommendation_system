@@ -1,0 +1,7 @@
+<div id="write_comment">
+Write comment:
+<form method="POST" action="{% url 'comments:comment-post' blog.id %}" enctype="'multipart/form-data">{% csrf_token %}
+    {{ comment_form.as_p }}
+    <input type="submit" value="write comment">
+</form>
+</div>

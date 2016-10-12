@@ -12,8 +12,8 @@ class Comment(models.Model):
     content = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
     binom = models.FloatField(default=0.5, null=True, blank=True)
-    ups = models.IntegerField(null=True, blank=True)
-    downs = models.IntegerField(null=True, blank=True)
+    ups = models.IntegerField(default=0)
+    downs = models.IntegerField(default=0)
 
     parent = models.ForeignKey('self', related_name="children", blank=True, null=True)
 
@@ -42,13 +42,14 @@ class Comment(models.Model):
         if s == 0:
             s = 1
         p = z[1]/float(s)
-        self.binom = sorted([0, z[1]/s - m.sqrt( p*(1-p)/s ), 1])[1]
+        q = 1.96
+        self.binom = sorted([0, p + q*q/(2*s) - q*m.sqrt(p*(1-p)/s + q*q/(4*s*s)), 1])[1] #wilson interval
         self.ups = z[1]
         self.downs = z[-1]
         self.save()
 
     class Meta:
-        ordering = ['-binom']
+        ordering = ['binom']
 
 
 class Vote(models.Model):

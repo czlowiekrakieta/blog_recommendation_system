@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout, get_user_model
+from recommendations.models import RecommendationBlog, RecommendationUser
 from .forms import UserLoginForm
 # Create your views here.
 from blogs.models import UserFollowings, Rating
@@ -103,6 +104,10 @@ def register_page(request):
         user_foll = user_likes.save(commit=False)
         user_foll.set_user(user)
         user_foll.save()
+        
+        c = RecommendationUser(user=user_foll)
+        c.save()
+        
         login(request, user)
         return redirect('main')
 

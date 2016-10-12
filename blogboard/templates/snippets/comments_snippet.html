@@ -1,3 +1,5 @@
+{% include 'snippets/new_comment.html' %}
+
 <div id="comments_container">
 {% for comm in comments %}:
     {{ comm.user.username }} on {{ comm.timestamp|timesince }}
