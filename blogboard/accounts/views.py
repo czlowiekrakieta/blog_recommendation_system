@@ -3,12 +3,10 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout, get_user_model
 from .forms import UserLoginForm
 # Create your views here.
-from recommendations.models
 from blogs.models import UserFollowings, Rating
 from .forms import UserLikesForm, UserRegisterForm, UserLoginForm, UserLogoutForm
 import os
 from comments.models import Comment
-from recommendations import math
 
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
 def merge_timestamp(ratings, comments):
