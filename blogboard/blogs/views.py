@@ -1,8 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from blogs.models import Blog, UserFollowings, Rating
 import os
-from django.db.models import Count
-from .forms import RatingForm, NewBlogForm
+from django.db.models import Count, Q
+from .forms import RatingForm, NewBlogForm, SearchForm, AdvSearchForm
 from recommendations import math
 from recommendations.models import ManageCalculations, RecommendationBlog, RecommendationUser, MostPopularByCat
 from comments.forms import CommentForm, VoteForm
@@ -12,9 +12,32 @@ from comments.models import Comment
 from accounts.views import merge_timestamp
 from django.db.models import Count
 from time import time
-from blogboard.common import blog_and_user
+from blogboard.common import blog_and_user, ugly_filtering
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
 
+def blog_search_list(request):
+    searchform = SearchForm(request.GET or None)
+    spost = AdvSearchForm(request.POST or None)
+
+    if searchform.is_valid():
+        s = searchform.cleaned_data['search']
+        r = Blog.objects.filter(Q(name__icontains=s) | Q(description__icontains=s)).distinct()
+        return render(request, templates_location + "/searchlist.html", {"searchform":spost, "result_list":r})
+
+    return render(request, templates_location + "/searchlist.html", {"searchform": spost, "result_list":[]})
+
+def blog_adv_search_list(request):
+    searchform = AdvSearchForm(request.GET or None)
+    print(searchform.is_valid())
+    if searchform.is_valid():
+        things = {f: (searchform.cleaned_data[f+"greater"], searchform.cleaned_data[f+'lesser']) for f in fields}
+        and_or = searchform.cleaned_data['and_or']
+        r = ugly_filtering(and_or, things)
+        s = searchform.cleaned_data['search']
+        r = r | Blog.objects.filter(Q(name__icontains=s) | Q(description__icontains=s))
+        return render(request, templates_location + "/searchlist.html", {"searchform":searchform, "result_list":r})
+
+    return render(request, templates_location + "/searchlist.html", {"searchform":searchform, "result_list": []})
 
 
 def blog_detail(request, pk=None):
@@ -26,15 +49,14 @@ def blog_detail(request, pk=None):
     voteform = VoteForm(request.POST or None)
     login_form = UserLoginForm(request.POST or None)
     logout_form = UserLogoutForm(request.POST or None)
+    searchform = SearchForm(request.POST or None)
     path = request.path
 
     login_form.set_path(path)
     logout_form.set_path(path)
     comment_form.set_path(path)
     voteform.set_path(path)
-    s = time()
     countings = list(map(lambda x: Rating.objects.filter(blog=instance).values(x).annotate(Count(x)), fields))
-    s = time()
     maximum = 0
     def turn_to_dict(nr):
         d = {countings[nr][i][fields[nr]]:countings[nr][i][fields[nr]+"__count"] for i in range(len(countings[nr]))}
@@ -58,7 +80,6 @@ def blog_detail(request, pk=None):
     similar = sim.similar.all()
 
     comments = instance.comment_set.all()
-    print(comments)
     context_data = {
         "rate_form": rate_form,
         "voteform": voteform,
@@ -72,7 +93,8 @@ def blog_detail(request, pk=None):
         'countings': countings,
         'g_rating':g_rating[:-2],
         'similar': similar,
-        'maximum': maximum
+        'maximum': maximum,
+        'searchform': searchform,
     }
 
 
@@ -155,6 +177,7 @@ def blog_unfollow(request, pk=None):
 def main_page(request):
     login_form = UserLoginForm(request.POST or None)
     logout_form = UserLogoutForm(request.POST or None)
+    searchform = SearchForm(request.POST or None)
     path = request.path
 
     login_form.set_path(path)
@@ -219,6 +242,7 @@ def main_page(request):
     context_data['popular'] = s[0]
     dict_pop = dict(zip(fields[1:], s[1:]))
     context_data['cat_popularity'] = dict_pop
+    context_data['searchform'] = searchform
 
 
     return render(request, templates_location+"/main.html", context_data)

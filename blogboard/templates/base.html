@@ -5,6 +5,10 @@
 
 <body>
 
+{% block search %}
+{% include 'snippets/searchform.html' %}
+{% endblock %}
+
 <a href="{% url 'main' %}">Main page</a></br>
 
     {% block content %}

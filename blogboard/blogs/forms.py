@@ -1,8 +1,70 @@
-from .models import Blog, UserFollowings, Rating, languages
-from django.contrib.auth.models import User
+from .models import Blog, UserFollowings, Rating, languages, fields
 from django import forms
 rates = [x for x in enumerate(['not at all', 'a bit', 'evenly with other topics', 'dominates others',
                                'speaks only about it'])]
+
+
+class SearchForm(forms.Form):
+    search = forms.CharField()
+
+    class Meta:
+        fields = [
+            'search'
+        ]
+
+class AdvSearchForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(AdvSearchForm, self).__init__(*args, **kwargs)
+        self.initial['and_or'] = 1
+        for f in fields:
+            self.initial[f + "lesser"] = 4
+            self.fields[f + "lesser"].label = str(f.replace("_", " ") + " lesser than")
+            self.fields[f + "greater"].label = str(f.replace("_", " ") + " greater than")
+
+    and_or = forms.ChoiceField(choices=[(0, "AND"), (1, "OR")], required=False)
+    search = forms.CharField(required=False)
+    politicsgreater = forms.ChoiceField(choices=rates)
+    politicslesser = forms.ChoiceField(choices=rates[::-1])
+    sportsgreater = forms.ChoiceField(choices=rates)
+    sportslesser = forms.ChoiceField(choices=rates[::-1])
+    travelgreater = forms.ChoiceField(choices=rates)
+    travellesser = forms.ChoiceField(choices=rates[::-1])
+    fashiongreater = forms.ChoiceField(choices=rates)
+    fashionlesser = forms.ChoiceField(choices=rates[::-1])
+    soft_sciencegreater = forms.ChoiceField(choices=rates)
+    soft_sciencelesser = forms.ChoiceField(choices=rates[::-1])
+    hard_sciencegreater = forms.ChoiceField(choices=rates)
+    hard_sciencelesser = forms.ChoiceField(choices=rates[::-1])
+    techgreater = forms.ChoiceField(choices=rates)
+    techlesser = forms.ChoiceField(choices=rates[::-1])
+    culturegreater = forms.ChoiceField(choices=rates)
+    culturelesser = forms.ChoiceField(choices=rates[::-1])
+    general_ratingsgreater = forms.ChoiceField(choices=rates)
+    general_ratingslesser = forms.ChoiceField(choices=rates[::-1])
+
+    class Meta:
+        fields = [
+            'search',
+            'and_or',
+            'politicsgreater',
+            'politicslesser',
+            'sportsgreater',
+            'sportslesser',
+            'fashionlesser',
+            'fashiongreater',
+            'travelgreater',
+            'travellesser',
+            'culturegreater',
+            'culturelesser',
+            'techgreater',
+            'techlesser',
+            'soft_sciencegreater',
+            'soft_sciencelesser',
+            'hard_sciencegreater',
+            'hard_sciencelesser',
+            'general_ratingsgreater',
+            'general_ratingslesser',
+        ]
 
 class NewBlogForm(forms.ModelForm):
     name = forms.CharField()

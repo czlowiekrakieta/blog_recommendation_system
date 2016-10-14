@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block search %}
+
+<div>
+<form id="searchform" action="{% url 'blogs:blog-adv-search' %}" method='get' enctype="'multipart/form-data">
+    {{ searchform.as_p }}
+    <input type="submit" value="dig">
+</form>
+</div>
+
+{% endblock %}
+
+{% block content %}
+
+{% if result_list %}
+    {% for el in result_list %}
+        {{ el.name }}, {{ el.description }} </br>
+    {% endfor %}
+
+{% endif %}
+
+
+{% endblock %}
