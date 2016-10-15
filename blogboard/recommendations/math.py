@@ -28,7 +28,7 @@ def create_blog_matrix():
     d = {}
     for i, blog in enumerate(blogs):
         blog.create_coefficients()
-        matrix[i, ] = np.hstack( (blog.id, np.asarray([getattr(blog, x) for x in fields[1:]])) )
+        matrix[i, ] = np.hstack( (blog.id, np.asarray( blog.get_fields_arr() )) )
         d[blog.id] = i
     return matrix, d
 
@@ -57,12 +57,6 @@ def similar(id, corr_matrix, id_list, dictionary, what):
         return User.objects.filter(id__in = ids)
 
 def users_who_liked_also_liked():
-    pass
-
-def run_regression_for_users():
-    pass
-
-def run_regression_for_blogs():
     pass
 
 def predict_ratings():

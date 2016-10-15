@@ -8,6 +8,7 @@ from blogs.models import UserFollowings, Rating
 from .forms import UserLikesForm, UserRegisterForm, UserLoginForm, UserLogoutForm
 import os
 from comments.models import Comment
+from recommendations.models import ManageCalculations
 
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
 def merge_timestamp(ratings, comments):
@@ -70,6 +71,7 @@ def login_view(request):
 
         user = authenticate(username=username, password=password)
         login(request, user)
+
         return redirect(path)
 
     path = form.cleaned_data['path']

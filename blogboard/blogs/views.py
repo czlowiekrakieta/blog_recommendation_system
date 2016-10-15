@@ -183,6 +183,10 @@ def main_page(request):
     login_form.set_path(path)
     logout_form.set_path(path)
 
+    mc = get_object_or_404(ManageCalculations, pk=1)
+    if not mc.was_regressed_recently():
+        mc.user_regression()
+
     if request.user.is_authenticated:
         user = request.user
         instance = get_object_or_404(UserFollowings, user=user)

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Count
+from django.utils import timezone
+import pytz
 import math as m
 
 # Create your models here.
@@ -55,6 +57,17 @@ class Blog(models.Model):
             setattr(self, key, coef)
             self.save()
 
+    def get_fields_arr(self):
+        z = self.__dict__
+        return [z[f] for f in fields[1:]]
+
+
+    def set_fields_from_arr(self, arr):
+        for i, f in enumerate(fields[1:]):
+            setattr(self, f, arr[i])
+
+        self.save()
+
 class Rating(models.Model):
     user = models.ForeignKey(User)
     blog = models.ForeignKey(Blog)
@@ -75,6 +88,10 @@ class Rating(models.Model):
 
     def class_str(self):
         return 'rating'
+
+    def get_fields_arr(self):
+        z = self.__dict__
+        return [z[f] for f in fields]
 
 class UserFollowings(models.Model):
     user = models.OneToOneField(User)
@@ -100,5 +117,14 @@ class UserFollowings(models.Model):
     def class_str(self):
         return 'userfollowings'
 
+    def get_fields_arr(self):
+        z = self.__dict__
+        return [z[f] for f in fields[1:]]
+
+    def set_fields_from_arr(self, arr):
+        for i, f in enumerate(fields[1:]):
+            setattr(self, f, arr[i])
+
+        self.save()
 
 
