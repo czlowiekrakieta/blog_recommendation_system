@@ -3,8 +3,8 @@ from blogs.models import Blog, UserFollowings, Rating
 import os
 from django.db.models import Count, Q
 from .forms import RatingForm, NewBlogForm, SearchForm, AdvSearchForm
-from recommendations import math
-from recommendations.models import ManageCalculations, RecommendationBlog, RecommendationUser, MostPopularByCat
+from recommendations import models as rec_models
+from recommendations.models import RecommendationBlog, RecommendationUser, MostPopularByCat#, LinearRegression
 from comments.forms import CommentForm, VoteForm
 from accounts.forms import UserLoginForm, UserLogoutForm
 from blogs.models import fields, Rating
@@ -13,7 +13,11 @@ from accounts.views import merge_timestamp
 from django.db.models import Count
 from time import time
 from blogboard.common import blog_and_user, ugly_filtering
+import django_rq
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
+
+
+
 
 def blog_search_list(request):
     searchform = SearchForm(request.GET or None)
@@ -56,6 +60,8 @@ def blog_detail(request, pk=None):
     logout_form.set_path(path)
     comment_form.set_path(path)
     voteform.set_path(path)
+
+    #this thing is about to be transferred to Celery tasking somehow ( if I figure out how to set JSON in database )
     countings = list(map(lambda x: Rating.objects.filter(blog=instance).values(x).annotate(Count(x)), fields))
     maximum = 0
     def turn_to_dict(nr):
@@ -71,13 +77,15 @@ def blog_detail(request, pk=None):
 
     g_rating = countings.pop("general_ratings")
 
-    mc = get_object_or_404(ManageCalculations, pk=1)
-    if not mc.was_evaluated_recently():
-        mc.calc_blogs()
-        mc.calc_users()
+    # mc = get_object_or_404(ManageCalculations, pk=1)
+    # if not mc.was_evaluated_recently():
+    #     mc.calc_blogs()
+    #     mc.calc_users()
 
     sim = RecommendationBlog.objects.get(blog=instance)
     similar = sim.similar.all()
+
+    #here ends pile of things about to be transfered
 
     comments = instance.comment_set.all()
     context_data = {
@@ -183,9 +191,12 @@ def main_page(request):
     login_form.set_path(path)
     logout_form.set_path(path)
 
-    mc = get_object_or_404(ManageCalculations, pk=1)
-    if not mc.was_regressed_recently():
-        mc.user_regression()
+
+    # mc = get_object_or_404(ManageCalculations, pk=1)
+
+    django_rq.enqueue(rec_models.calc_users)
+
+
 
     if request.user.is_authenticated:
         user = request.user
@@ -205,7 +216,7 @@ def main_page(request):
         comments = comments.order_by("-timestamp")
         show_list = merge_timestamp(ratings, comments)
 
-        foll_likes = math.followed_users_liked(instance)
+        foll_likes = rec_models.followed_users_liked(instance)
 
         context_data = {
             'logged': True,
@@ -237,10 +248,11 @@ def main_page(request):
     # context_data['cat_popularity'] = dict_categories_popularity
 
     s = []
+
     for f in fields:
         mp = MostPopularByCat.objects.get(category=f)
-        if not mp.was_evaluated_recently():
-            mp.evaluate()
+        # if mp.was_evaluated_recently():
+        django_rq.enqueue(mp.evaluate)
         s.append(mp.blogs.all())
 
     context_data['popular'] = s[0]

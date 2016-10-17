@@ -22,5 +22,6 @@ urlpatterns = [
 	url(r'^comment/', include('comments.urls', namespace='comments')),
 	url(r'^accounts/', include('accounts.urls', namespace='accounts')),
     url(r'^admin/', admin.site.urls),
-	url(r'^$', main_page, name='main')
+	url(r'^$', main_page, name='main'),
+	url(r'^django-rq/', include('django_rq.urls')),
 ]
