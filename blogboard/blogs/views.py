@@ -16,9 +16,6 @@ from blogboard.common import blog_and_user, ugly_filtering
 import django_rq
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
 
-
-
-
 def blog_search_list(request):
     searchform = SearchForm(request.GET or None)
     spost = AdvSearchForm(request.POST or None)
@@ -61,7 +58,7 @@ def blog_detail(request, pk=None):
     comment_form.set_path(path)
     voteform.set_path(path)
 
-    #this thing is about to be transferred to Celery tasking somehow ( if I figure out how to set JSON in database )
+    #this thing is about to be transferred to rq tasking, first transfer to CharField
     countings = list(map(lambda x: Rating.objects.filter(blog=instance).values(x).annotate(Count(x)), fields))
     maximum = 0
     def turn_to_dict(nr):
@@ -192,12 +189,6 @@ def main_page(request):
     logout_form.set_path(path)
 
 
-    # mc = get_object_or_404(ManageCalculations, pk=1)
-
-    django_rq.enqueue(rec_models.calc_users)
-
-
-
     if request.user.is_authenticated:
         user = request.user
         instance = get_object_or_404(UserFollowings, user=user)
@@ -251,8 +242,8 @@ def main_page(request):
 
     for f in fields:
         mp = MostPopularByCat.objects.get(category=f)
-        # if mp.was_evaluated_recently():
-        django_rq.enqueue(mp.evaluate)
+        if not mp.was_evaluated_recently():
+            django_rq.enqueue(mp.evaluate)
         s.append(mp.blogs.all())
 
     context_data['popular'] = s[0]

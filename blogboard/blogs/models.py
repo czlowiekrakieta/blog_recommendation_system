@@ -2,8 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Count
 from django.utils import timezone
-import pytz
-import math as m
+import numpy as np
 
 # Create your models here.
 languages = [x for x in enumerate(['english', 'polish', 'german', 'french', 'russian'])]
@@ -27,10 +26,12 @@ class Blog(models.Model):
     hard_science = models.FloatField(null=True)
     soft_science = models.FloatField(null=True)
 
+    coefficients = models.CharField(max_length=200, default='')
+
     def __str__(self):
         return self.name + " by " +  self.author
 
-    def create_coefficients(self): #this is to be rewritten to acknowledge fact that we possess some information already
+    def set_coefficients_by_name(self): #this is to be rewritten to acknowledge fact that we possess some information already
         countings = list(map(lambda x: Rating.objects.filter(blog=self).values(x).annotate(Count(x)), fields))
 
         def turn_to_dict(nr):
@@ -56,6 +57,20 @@ class Blog(models.Model):
 
             setattr(self, key, coef)
             self.save()
+
+    def generate_coefficients(self):
+        x = np.round(np.random.randn(3,9)/10, 3)
+        s = ''.join(list(map(lambda x: str(x)+";", np.ravel(x) )))
+        setattr(self, 'coefficients', s[:-1])
+        self.save()
+
+    def retrieve_coefficients(self):
+        return np.reshape(np.asarray(list(map(float, getattr(self, 'coefficients').split(";") ))), (3,9) )
+
+    def set_coefficients(self, array):
+        s = ''.join(list(map(lambda x: str(x)+";", np.ravel(x))))
+        setattr(self, 'coefficients', s[:-1])
+        self.save()
 
     def get_fields_arr(self):
         z = self.__dict__
@@ -107,6 +122,7 @@ class UserFollowings(models.Model):
     hard_science = models.FloatField(default=2)
     soft_science = models.FloatField(default=2)
 
+
     def __str__(self):
         return self.user.username
 
@@ -119,7 +135,7 @@ class UserFollowings(models.Model):
 
     def get_fields_arr(self):
         z = self.__dict__
-        return [z[f] for f in fields[1:]]
+        return np.asarray([z[f] for f in fields[1:]])
 
     def set_fields_from_arr(self, arr):
         for i, f in enumerate(fields[1:]):

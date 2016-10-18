@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
+{% load math_templates %}
+
 {% block search %}
-<div>
-<form id="searchform" action="{% url 'blogs:blog-adv-search' %}" method='get' enctype="'multipart/form-data">{% csrf_token %}
-    {{ searchform.as_p }}
-    <input type="submit" value="dig">
-</form>
-</div>
+
+{% include 'snippets/advsearchform_snipp.html' %}
+
+
 {% endblock %}
 
 {% block content %}

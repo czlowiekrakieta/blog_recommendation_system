@@ -1,0 +1,24 @@
+{% load math_templates %}
+
+<div>
+<form id="searchform" action="{% url 'blogs:blog-adv-search' %}" method='get' enctype="'multipart/form-data">{% csrf_token %}
+    <!--{{ searchform.as_p }}-->
+    <table>
+    {% for field in searchform.visible_fields %}
+        {% if not forloop.counter|is_even %}
+        <tr>
+        {% endif %}
+        <th>{{field.label_tag}}</th>
+        <td>
+          {{ field.errors }}
+          {{ field }}
+        </td>
+            {% if forloop.counter|is_even %}
+            </tr>
+            {% endif %}
+
+    {% endfor %}
+    </table>
+    <input type="submit" value="dig">
+</form>
+</div>

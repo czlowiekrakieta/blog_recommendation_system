@@ -3,8 +3,162 @@ from django.db.models import Count
 from blogs.models import Blog, Rating, UserFollowings, fields
 from django.contrib.auth.models import User
 from django.utils import timezone
+from blogboard.common import threshold
 import pytz
 import numpy as np
+
+class Calculations:
+    def __init__(self):
+        self.users = User.objects.all()
+        c = 0
+        self.user_dict = {}
+        for us in self.users:
+            if len(us.rating_set.all()) > threshold:
+                self.user_dict[c] = us.id
+                c += 1
+                rat = Rating.objects.filter(user=us)
+                features = np.array(rat.values_list(*fields[1:]))
+                ratings = np.array(rat.values_list('general_ratings')) - 1
+                us.set_fields_from_arr( np.mean(features * ratings, axis=0) )
+            else:
+                self.users.remove(us)
+        self.user_rating_matrix = np.zeros((c,c))
+        self.user_coef_matrix = np.zeros((c,c))
+        self.b = 0
+        self.blogs = Blog.objects.all()
+        self.blog_dict = {}
+        for bl in self.blogs:
+            if len(bl.rating_set.all()) > threshold:
+                self.blog_dict[b] = bl.id
+                self.b += 1
+            else:
+                self.blogs.remove(bl)
+        self.blog_matrix = np.zeros((self.b,self.b))
+        self.liking_matrix = np.zeros((self.b,self.b))
+
+    def calc_user_matrices(self):
+        for i, us in enumerate(self.users):
+            r = Rating.objects.filter(user=us)
+            usf = UserFollowings.objects.get(user=us)
+            for j, inner_us in enumerate(self.users[i+1:]):
+
+                usf_inner = UserFollowings.objects.get(user=inner_us)
+                inner_r = Rating.objects.filter(user=inner_us)
+                blogs = set([r.blog.id for r in r | inner_r ])
+                if len(blogs) < threshold:
+                    self.user_rating_matrix[i, j] = 0
+                    self.user_coef_matrix[i, j] = 0
+                else:
+                    vals_outer = r.filter(blog_id__in=blogs).order_by('blog_id').values('general_ratings')
+                    vals_inner = inner_r.filter(blog_id__in=blogs).order_by('blog_id').values('general_ratings')
+                    self.user_rating_matrix[i, j] = np.corrcoef(vals_inner.T[0], vals_outer.T[0])[0,1]
+                    self.user_coef_matrix[i, j] = np.corrcoef(usf.get_fields_arr(), usf.get_fields_arr())[0,1]
+
+        self.user_rating_matrix += self.user_rating_matrix.T
+        self.user_coef_matrix += self.user_coef_matrix.T
+
+    def calc_blog_matrix(self):
+        for i, bl in enumerate(Blog):
+            r = Rating.objects.filter(blog=bl)
+            for j, inner_bl in enumerate(self.blogs[i+1:]):
+                inner_r = Rating.objects.filter(blog=inner_bl)
+                users = ser([r.user.id for r in r | inner_r ])
+                if len(users) < threshold:
+                    self.blog_matrix[i, j] = 0
+                else:
+                    vals_outer = r.filter(blog_id__in=users).order_by('user_id').values('general_ratings')
+                    vals_inner = inner_r.filter(blog_id__in=users).order_by('user_id').values('general_ratings')
+                    self.blog_matrix[i, j] = np.corrcoef(vals_inner.T[0], vals_outer.T[0])[0, 1]
+
+        self.blog_matrix += self.blog_matrix.T
+
+    def most_similar(self):
+        pass
+
+    def blog_regression(self, iterations=int(1e3), alpha=1e-3, reg=1e-3):
+        for bl in self.blogs:
+            if bl.coefficients == '':
+                bl.generate_coefficients()
+            weights = bl.retrieve_coefficients()
+            ratings = bl.rating_set.all()
+            if len(ratings) < threshold:
+                continue
+            X = np.zeros((ratings.shape[0], len(fields)-1))
+            for i, r in enumerate(ratings):
+                X[i, ] = UserFollowings.objects.get(user=r.user).get_fields_arr()
+
+            X = np.concatenate([np.repeat(1, X.shape[0])[None].T, X], axis=1)
+            ratings = np.asarray(ratings.values_list('general_ratings'))
+            y = np.zeros((ratings.shape[0], 3))
+            for i in range(ratings.shape[0]):
+                y[i, ratings[i]] = 1
+
+            while iterations:
+                iterations -= 1
+
+                scores = np.dot(X, weights.T)
+                exp_scores = np.exp(scores)
+                softmax = exp_scores / np.sum(exp_scores, axis=1)[None].T
+
+                derivatives = softmax
+                derivatives[:, y] -= 1
+                der_weights = np.dot(X.T, derivatives)
+                weights -= alpha*der_weights + reg*weights
+            bl.set_coeffcients(weights)
+
+
+    def users_who_liked_also_liked(self):
+        users = UserFollowings.objects.all()
+        all = users.count()
+        for i, bl in enumerate(self.blogs):
+            first = Rating.objects.filter(blog=bl)
+            if first.count() < threshold:
+                self.liking_matrix = np.zeros(self.b)
+                continue
+            positive_outer = first.filter(general_ratings=2).count()
+            for j, inner_bl in enumerate(self.blogs):
+                positive_both = 0
+                positive_inner_neg_outer = 0
+                for us in users:
+                    r = us.rating_set.all()
+                    if r.filter(general_ratings=2, blog__in=[inner_bl, bl]).count() == 2:
+                        positive_both += 1
+                    if r.filter(general_ratings__in=[0,1], blog=bl).exists() and r.filter(general_ratings=2, blog=inner_bl).exists():
+                        positive_inner_neg_outer += 1
+
+                numerator = positive_both/positive_outer
+                denominator = positive_inner_neg_outer/(all-positive_outer)
+                self.liking_matrix[i, j] = numerator/denominator
+
+
+    def predict_rating(self, blog, user):
+        user_coef = UserFollowings.objects.get(user=user).get_fields_arr()
+        weights = blog.retrieve_coefficients()
+        scores = np.dot(user_coef, weights.T)
+        #weighted average of user ratings
+        loc = dict( [ reversed(i) for i in self.user_dict.items() ] )[user.id]
+        where_pos_rat = np.where(self.user_rating_matrix[loc, ] > 0)
+        where_pos_coef = np.where(self.user_coef_matrix[loc, ] > 0)
+        weights_ratings = np.asarray( [(Rating.objects.get(user_id=self.user_dict[i]).general_ratings, self.user_rating_matrix[loc, i] ) for i in where_pos_rat] )
+        score_ratings = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+
+        weights_ratings = np.asarray( [(Rating.objects.get(user_id=self.user_dict[i]).general_ratings, self.user_coef_matrix[loc, i] ) for i in where_pos_coef] )
+        score_coefs = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+
+        if not PredictRating.object.filter(blog=blog, user=user).exists():
+            c = PredictRating(blog=blog, user=user, rating=np.mean(np.argmax(scores), score_ratings, score_coefs))
+            c.save()
+        else:
+            c = PredictRating.object.get(blog=blog, user=user)
+            c.rating = np.mean(np.argmax(scores), score_coefs, score_ratings)
+            c.save()
+
+
+
+class PredictRating(models.Model):
+    blog = models.OneToOneField(Blog)
+    user = models.OneToOneField(User)
+    rating = models.FloatField()
 
 class RecommendationUser(models.Model):
     user = models.OneToOneField(UserFollowings)
@@ -44,66 +198,6 @@ class MostPopularByCat(models.Model):
         self.blogs.add(*things)
 
 
-class LinearRegression:
-    def __init__(self, X, Y, weights):
-
-        self.N = X.shape[0]
-        self.X = X
-        self.Y = Y
-
-        self.weights = np.array(weights)
-        self.cost_history = []
-
-    def fit(self, iterations=int(1e3), alpha=1e-3, reg=1e-3, with_cost_history=True):
-        self.reg = reg
-        while iterations:
-            iterations -= 1
-
-            residuals = np.dot(self.X, self.weights) - self.Y.T
-
-            derivatives = np.asarray(list(map(lambda i: np.mean(residuals * self.X[:, i]), range(self.X.shape[1]))))
-            part1 = alpha*derivatives
-            part2 = self.reg*self.weights
-            self.weights -= alpha * derivatives + self.reg * self.weights
-            if with_cost_history:
-                cost = np.mean(residuals * residuals)
-                self.cost_history.append(cost)
-
-    def predict(self, tab):
-        self.pred = np.dot(np.concatenate([np.repeat(1, tab.shape[0])[None].T, tab], axis=1), self.weights)
-        return self.pred
-
-    def get_cost_history(self):
-        return self.cost_history
-
-    def get_params(self):
-        return self.weights
-
-
-def create_user_matrix():
-    users = User.objects.all()
-    matrix = np.zeros( ( users.count(), len(fields) ) )
-    d = {}
-    for i, user in enumerate(users):
-        rat = Rating.objects.filter(user=user)
-        features = np.array(rat.values_list(*fields[1:]))
-        ratings = np.array(rat.values_list('general_ratings')) - 1
-        try:
-            matrix[i, ] = np.hstack((user.id, np.mean(features*ratings, axis=0) ) )
-        except ValueError:
-            matrix[i, ] = np.hstack((user.id, np.zeros(len(fields)-1)))
-        d[user.id] = i
-    return matrix, d
-
-def create_blog_matrix():
-    blogs = Blog.objects.all()
-    matrix = np.zeros((blogs.count(), len(fields)))
-    d = {}
-    for i, blog in enumerate(blogs):
-        blog.create_coefficients()
-        matrix[i, ] = np.hstack( (blog.id, np.asarray( blog.get_fields_arr() )) )
-        d[blog.id] = i
-    return matrix, d
 
 def followed_users_liked(userfollowings):
     followed_users = userfollowings.following.all()
@@ -116,24 +210,6 @@ def followed_users_liked(userfollowings):
     bl = list(set([x.blog.id for x in blogs_qs]))
     return Blog.objects.filter(id__in = bl)
 
-def create_corr_matrix(blog_matrix):
-    return np.corrcoef(blog_matrix[:, 1:]), blog_matrix[:, 0]
-
-def similar(id, corr_matrix, id_list, dictionary, what):
-    nr = dictionary[id]
-    r_sorted = np.argsort(corr_matrix[nr, :])[::-1][1:]
-    ids = np.asarray(id_list)[r_sorted]
-
-    if what=='blogs':
-        return Blog.objects.filter(id__in = ids)
-    if what=='users':
-        return User.objects.filter(id__in = ids)
-
-def users_who_liked_also_liked():
-    pass
-
-def predict_ratings():
-    pass
 
 def calculate_temporal_ratings(set_of_ratings):
     # s = set_of_ratings.values('general_ratings').annotate(rating=Count('general_ratings'))
@@ -180,64 +256,4 @@ def most_popular_category(category):
 
     return blog_list
 
-
-def calc_users():
-    print("its happening")
-    users = UserFollowings.objects.all()
-    m, d = create_user_matrix()
-    corr, id_list = create_corr_matrix(m)
-    for usf in users:
-        real_user = usf.user
-        sim = similar(real_user.id, corr, id_list, d, 'users')
-        r = RecommendationUser.objects.get(user=usf)
-        if r.similar.all().count():
-            r.similar.remove(*r.similar.all())
-        r.similar.add(*sim)
-
-
-def calc_blogs():
-    print("its happening")
-    blogs = Blog.objects.all()
-    m, d = create_blog_matrix()
-    corr, id_list = create_corr_matrix(m)
-    for bl in blogs:
-        sim = similar(bl.id, corr, id_list, d, 'blogs')
-        r = RecommendationBlog.objects.get(blog=bl)
-        if r.similar.all().count():
-            r.similar.remove(*r.similar.all())
-        r.similar.add(*sim)
-
-
-def regression( what, user=None, blog=None):
-    ratings = Rating.objects.none()
-    obj = 1
-    if what == 'user':
-        obj = UserFollowings.objects.get(user=user)
-        ratings = Rating.objects.filter(user=user)
-    elif what == 'blog':
-        obj = Blog.objects.get(blog=blog)
-        ratings = Rating.objects.filter(blog=blog)
-
-    z = ratings.count()
-    if not z:
-        return
-    inputs = np.zeros((z, len(fields) - 1))
-    values = np.zeros(z)
-    weights = obj.get_fields_arr()
-
-    for i, rat in enumerate(ratings):
-        arr = rat.get_fields_arr()
-        inputs[i, :] = arr[1:]
-        values[i] = arr[0]
-
-    model = LinearRegression(X=inputs, Y=values, weights=weights)
-    model.fit(with_cost_history=False)
-    weights = model.get_params()
-    obj.set_fields_from_arr(weights)
-
-
-def user_regression():
-    users = User.objects.all()
-    for us in users:
-        self.regression(what='user', user=us)
 
