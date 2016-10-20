@@ -68,7 +68,7 @@ class Blog(models.Model):
         return np.reshape(np.asarray(list(map(float, getattr(self, 'coefficients').split(";") ))), (3,9) )
 
     def set_coefficients(self, array):
-        s = ''.join(list(map(lambda x: str(x)+";", np.ravel(x))))
+        s = ''.join(list(map(lambda x: str(x)+";", np.ravel(array))))
         setattr(self, 'coefficients', s[:-1])
         self.save()
 
@@ -107,6 +107,10 @@ class Rating(models.Model):
     def get_fields_arr(self):
         z = self.__dict__
         return [z[f] for f in fields]
+
+    def __str__(self):
+        return self.user.username + ", " + self.blog.name + ", " + str(self.general_ratings)
+
 
 class UserFollowings(models.Model):
     user = models.OneToOneField(User)

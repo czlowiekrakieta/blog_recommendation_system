@@ -1,0 +1,225 @@
+import numpy as np
+from copy import deepcopy
+
+class LinearRegression:
+    def __init__(self, X, Y, with_bias=True):
+        
+        self.N = X.shape[0]
+		if with_bias:
+        	self.X = np.concatenate([np.repeat(1, self.N)[None].T, X], axis=1)
+		else:
+			self.X = X
+        self.Y = Y
+        
+        self.weights = np.random.randn(self.X.shape[1])
+        self.cost_history = []
+        
+        
+    def fit(self, iterations=int(1e3), alpha=1e-3, reg=1e-3, with_cost_history=True):
+        self.reg = reg
+        while iterations:
+            iterations -= 1
+            
+            residuals = np.matmul( self.X, self.weights ) - self.Y.T
+            print(residuals)
+            
+            
+            
+            derivatives = np.asarray(list(map(lambda i: np.mean(residuals*self.X[:, i]) , range(self.X.shape[1]))))
+            
+            self.weights -= alpha*derivatives + self.reg*self.weights
+            if with_cost_history:
+                cost = np.mean(residuals*residuals)
+                self.cost_history.append(cost)
+        
+            
+    def predict(self, tab):
+        self.pred = np.matmul(np.concatenate([np.repeat(1, tab.shape[0])[None].T, tab], axis=1), self.weights)
+        return self.pred
+    
+    def get_cost_history(self):
+        return self.cost_history
+    
+    def get_params(self):
+        return self.weights
+    
+class LogisticRegression:
+    def __init__(self, X, Y, bias=True):
+        if bias:
+            self.X = np.concatenate([np.repeat(1, X.shape[0])[None].T, X], axis=1)
+        else:
+            self.X = np.array(X)
+        self.Y = np.array(Y)
+        
+        self.weights = np.random.randn(self.X.shape[1])
+        self.cost_history = []
+        
+        
+    def fit(self, iterations=int(1e3), alpha=1e-3, reg=1e-3, with_cost_history=True):
+        while iterations:
+            iterations -= 1
+            sigmoid = 1/(1+np.exp(-np.matmul(self.X, self.weights)))
+            if with_cost_history:
+                J = - np.mean( self.Y*np.log(sigmoid) + (1-self.Y)*np.log(1-sigmoid) )
+                self.cost_history.append(J)
+                
+            derivatives = np.asarray(list(map(lambda i: np.mean( (sigmoid-self.Y)*self.X[:, i] ), 
+                                              range(self.X.shape[1])  )))
+            
+            #print(derivatives, self.weights)
+            self.weights -= alpha*derivatives + reg*self.weights
+    
+    def get_cost_history(self):
+        return self.cost_history
+    
+    def get_params(self):
+        return self.weights
+    
+    def predict(self, tab):
+        self.pred = 1/(1+np.exp(-np.matmul( 
+                    np.concatenate([np.repeat(1, tab.shape[0])[None].T , tab ], axis = 1), self.weights )))
+        return self.pred
+    
+    
+class SoftmaxRegression:
+    def __init__(self, X, Y, bias=True):
+        if bias:
+            self.X = np.concatenate([np.repeat(1, X.shape[0])[None].T, X], axis=1)
+        else:
+            self.X = X
+        self.Y = Y
+        
+        self.classes = np.unique(self.Y)
+        if set(self.classes) != set(np.arange(self.classes.shape[0])):
+            self.Y = np.asarray(list(map(lambda x: np.where(x==self.classes), self.Y)))
+        
+        self.weights = np.random.randn((self.classes.shape[0], self.X.shape[1]))
+        
+        self.cost_history = []
+    
+    def fit(self, iterations=int(1e3), alpha=1e-3, reg=1e-3, with_cost_history=True):
+        while iterations:
+            iterations -= 1
+            
+            scores = np.dot(self.X, self.weights.T)
+            
+            exp_scores = np.exp(scores)
+            softmax = exp_scores/np.sum(exp_scores, axis=1)[None].T
+            
+            if with_cost_history:
+                self.cost_history.append( np.mean(-np.log(softmax[:, self.Y]) ) )
+                
+            derivatives = softmax
+            derivatives[:, self.Y] -= 1
+            
+            derivatives_weights = np.dot(self.X.T, derivatives)
+            
+            self.weights -= alpha*derivatives_weights + reg*self.weights
+            
+    def get_params(self):
+        return self.weights
+
+    def get_cost_history(self):
+        return self.cost_history
+
+    def predict(self, tab):
+        exp = np.exp( np.dot(tab, self.weights.T) )
+        exp = exp/np.sum(exp, axis=1)
+        return np.asarray(list(map(lambda x: self.classes[np.argmax[x]], exp)))
+
+class BayesianRegression:
+    def __init__(self,X,Y):
+        pass
+    
+
+class NeuralNetwork:
+    def __init__(self,X,Y, structure=[512]):
+        self.X = np.concatenate([np.repeat(1, X.shape[0])[None].T, X], axis=1)
+        self.Y = Y
+        
+        self.classes = np.unique(self.Y)
+        if set(self.classes) != set(np.arange(self.classes.shape[0])):
+            self.Y = np.asarray(list(map(lambda x: np.where(x==self.classes), self.Y)))
+        
+        if isinstance(structure, int):
+            self.structure = [self.X.shape[1], structure, np.unique(Y).shape[0]]
+            
+        elif isinstance(structure, list):
+            self.structure = [self.X.shape[1]] + structure + [np.unique(Y).shape[0]]
+            
+            
+        else:
+            raise TypeError("structure should be either int or list")
+
+        self.layers = []
+        
+        for ind_lay in range(len(self.structure)-1):
+            
+            self.layers.append( 1/100*np.random.randn(self.structure[ind_lay], self.structure[ind_lay+1] ).T )
+            
+            
+            
+    def fit(self, iterations = int(1e3), alpha=1e-0, reg=1e-3, dprate=0.5, dropout=[0], \
+            display=1000, with_cost_history=True):
+        
+        if with_cost_history:
+            self.cost_history = []
+        while iterations:
+            iterations -= 1
+            if iterations%display == 0:
+                print("There are {0} iterations left".format(iterations))
+            c = self.X.T
+            forward_prop = [c]
+            for l in self.layers[:-1]:
+                c = np.maximum(0, np.dot(l, c)) 
+                forward_prop.append( c )
+            
+            sc = np.dot(self.layers[-1], forward_prop[-1])
+            
+            
+            stab = np.amax(sc)
+            exp_scores = np.exp(sc-stab)
+            
+            softmax = exp_scores/np.sum(exp_scores, axis=1)[None].T
+
+            
+            
+            if with_cost_history:
+                self.cost_history.append( np.mean(-np.log(softmax[y, :])) )
+            delta = sc
+            delta[y, :] -= 1
+            delta /= self.X.shape[0]
+            #print(delta.shape)
+            derivatives = deepcopy(self.layers)
+            
+            
+            for b in np.arange(len(self.layers)-1, -1, -1 ):
+                #print(forward_prop[b].shape, delta.shape)
+                C = np.dot(delta, forward_prop[b].T) 
+                derivatives[b] = alpha*C + reg*self.layers[b]
+                delta = np.dot(self.layers[b].T, delta)
+                delta[np.where(forward_prop[b]<0)] = 0
+                
+                
+            for i in range(len(derivatives)):
+                self.layers[i] -= derivatives[i]
+                
+    
+            
+                
+    def predict(self, tab):
+        tab = np.concatenate([np.repeat(1, tab.shape[0])[None].T, tab], axis=1).T
+        for l in self.layers[:-1]:
+            tab = np.maximum(0, np.dot(l, tab))
+            
+        tab = np.dot(self.layers[-1], tab)
+        return np.argmax(tab, axis=0)
+    
+    def get_params(self):
+        return self.layers
+    
+    def get_cost_history(self):
+        return self.cost_history
+
+
+

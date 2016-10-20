@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import MostPopularByCat, RecommendationBlog, RecommendationUser#, ManageCalculations
+from .models import MostPopularByCat, RecommendationBlog, RecommendationUser, Calculations
 
 # Register your models here.
 class MostPopularByCatModelAdmin(admin.ModelAdmin):
@@ -19,6 +19,12 @@ class RecommendationUserModelAdmin(admin.ModelAdmin):
 
     class Meta:
         model = RecommendationUser
+
+class CalculationsModelAdmin(admin.ModelAdmin):
+    list_display = ['last_calculated']
+
+    class Meta:
+        model = Calculations
 #
 # class ManageCalculationsModelAdmin(admin.ModelAdmin):
 #     list_display = ['last_eval', 'last_regression']
@@ -29,4 +35,4 @@ class RecommendationUserModelAdmin(admin.ModelAdmin):
 admin.site.register(MostPopularByCat, MostPopularByCatModelAdmin)
 admin.site.register(RecommendationBlog, RecommendationBlogModelAdmin)
 admin.site.register(RecommendationUser, RecommendationUserModelAdmin)
-# admin.site.register(ManageCalculations, ManageCalculationsModelAdmin)
+admin.site.register(Calculations, CalculationsModelAdmin)

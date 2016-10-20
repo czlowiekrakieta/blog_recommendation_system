@@ -31,8 +31,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'django_rq',
-    # 'djcelery',
+    # 'django_rq',
+    # 'scheduler',
 	'blogs.apps.BlogsConfig',
 	'comments.apps.CommentsConfig',
 	'accounts.apps.AccountsConfig',
@@ -150,3 +150,10 @@ RQ_QUEUES = {
         'DB': 0,
     }
 }
+
+
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+BROKER_URL = 'amqp://guest@localhost//'

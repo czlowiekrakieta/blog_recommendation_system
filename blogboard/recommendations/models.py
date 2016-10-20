@@ -7,67 +7,72 @@ from blogboard.common import threshold
 import pytz
 import numpy as np
 
-class Calculations:
-    def __init__(self):
+class Calculations(models.Model):
+    last_calculated = models.DateTimeField(default=pytz.UTC.localize(timezone.datetime(2010, 1, 1)))
+
+    def init(self):
         self.users = User.objects.all()
-        c = 0
+        self.c = 0
         self.user_dict = {}
         for us in self.users:
             if len(us.rating_set.all()) > threshold:
-                self.user_dict[c] = us.id
-                c += 1
+                self.user_dict[self.c] = us.id
+                self.c += 1
                 rat = Rating.objects.filter(user=us)
                 features = np.array(rat.values_list(*fields[1:]))
                 ratings = np.array(rat.values_list('general_ratings')) - 1
-                us.set_fields_from_arr( np.mean(features * ratings, axis=0) )
+                UserFollowings.objects.get(user=us).set_fields_from_arr( np.mean(features * ratings, axis=0) )
             else:
-                self.users.remove(us)
-        self.user_rating_matrix = np.zeros((c,c))
-        self.user_coef_matrix = np.zeros((c,c))
+                self.users = self.users.exclude(id=us.id)
+        self.user_rating_matrix = np.zeros((self.c,self.c))
+        self.user_coef_matrix = np.zeros((self.c,self.c))
         self.b = 0
         self.blogs = Blog.objects.all()
         self.blog_dict = {}
         for bl in self.blogs:
             if len(bl.rating_set.all()) > threshold:
-                self.blog_dict[b] = bl.id
+                self.blog_dict[self.b] = bl.id
                 self.b += 1
             else:
-                self.blogs.remove(bl)
+                self.blogs = self.blogs.exclude(id=bl.id)
         self.blog_matrix = np.zeros((self.b,self.b))
         self.liking_matrix = np.zeros((self.b,self.b))
+
 
     def calc_user_matrices(self):
         for i, us in enumerate(self.users):
             r = Rating.objects.filter(user=us)
             usf = UserFollowings.objects.get(user=us)
             for j, inner_us in enumerate(self.users[i+1:]):
-
-                usf_inner = UserFollowings.objects.get(user=inner_us)
                 inner_r = Rating.objects.filter(user=inner_us)
-                blogs = set([r.blog.id for r in r | inner_r ])
+                blogs = set([x.blog.id for x in r ]) & set([x.blog.id for x in inner_r])
                 if len(blogs) < threshold:
                     self.user_rating_matrix[i, j] = 0
                     self.user_coef_matrix[i, j] = 0
                 else:
-                    vals_outer = r.filter(blog_id__in=blogs).order_by('blog_id').values('general_ratings')
-                    vals_inner = inner_r.filter(blog_id__in=blogs).order_by('blog_id').values('general_ratings')
+                    vals_outer = np.asarray(r.filter(blog_id__in=blogs).order_by('blog_id').values_list('general_ratings'))
+                    vals_inner = np.asarray(inner_r.filter(blog_id__in=blogs).order_by('blog_id').values_list('general_ratings'))
+                    print("Vals inner", vals_inner, "vals outer", vals_outer)
                     self.user_rating_matrix[i, j] = np.corrcoef(vals_inner.T[0], vals_outer.T[0])[0,1]
                     self.user_coef_matrix[i, j] = np.corrcoef(usf.get_fields_arr(), usf.get_fields_arr())[0,1]
+                    self.user_rating_matrix[np.isnan(self.user_rating_matrix)] = 0
+                    self.user_coef_matrix[np.isnan(self.user_coef_matrix)] = 0
 
+        print(self.user_coef_matrix, self.user_rating_matrix, self.user_dict)
         self.user_rating_matrix += self.user_rating_matrix.T
         self.user_coef_matrix += self.user_coef_matrix.T
 
     def calc_blog_matrix(self):
-        for i, bl in enumerate(Blog):
+        for i, bl in enumerate(self.blogs):
             r = Rating.objects.filter(blog=bl)
             for j, inner_bl in enumerate(self.blogs[i+1:]):
                 inner_r = Rating.objects.filter(blog=inner_bl)
-                users = ser([r.user.id for r in r | inner_r ])
+                users = set([x.user.id for x in r ]) & set([x.user.id for x in inner_r])
                 if len(users) < threshold:
                     self.blog_matrix[i, j] = 0
                 else:
-                    vals_outer = r.filter(blog_id__in=users).order_by('user_id').values('general_ratings')
-                    vals_inner = inner_r.filter(blog_id__in=users).order_by('user_id').values('general_ratings')
+                    vals_outer = np.asarray(r.filter(user_id__in=users).order_by('user_id').values_list('general_ratings'))
+                    vals_inner = np.asarray(inner_r.filter(user_id__in=users).order_by('user_id').values_list('general_ratings'))
                     self.blog_matrix[i, j] = np.corrcoef(vals_inner.T[0], vals_outer.T[0])[0, 1]
 
         self.blog_matrix += self.blog_matrix.T
@@ -83,15 +88,13 @@ class Calculations:
             ratings = bl.rating_set.all()
             if len(ratings) < threshold:
                 continue
-            X = np.zeros((ratings.shape[0], len(fields)-1))
+            X = np.zeros((len(ratings), len(fields)-1))
             for i, r in enumerate(ratings):
                 X[i, ] = UserFollowings.objects.get(user=r.user).get_fields_arr()
 
             X = np.concatenate([np.repeat(1, X.shape[0])[None].T, X], axis=1)
-            ratings = np.asarray(ratings.values_list('general_ratings'))
-            y = np.zeros((ratings.shape[0], 3))
-            for i in range(ratings.shape[0]):
-                y[i, ratings[i]] = 1
+            y = np.asarray(ratings.values_list('general_ratings'))
+
 
             while iterations:
                 iterations -= 1
@@ -102,14 +105,14 @@ class Calculations:
 
                 derivatives = softmax
                 derivatives[:, y] -= 1
-                der_weights = np.dot(X.T, derivatives)
+                der_weights = np.dot(X.T, derivatives).T
                 weights -= alpha*der_weights + reg*weights
-            bl.set_coeffcients(weights)
+
+            bl.set_coefficients(np.round(weights,3))
 
 
     def users_who_liked_also_liked(self):
-        users = UserFollowings.objects.all()
-        all = users.count()
+        all = self.users.count()
         for i, bl in enumerate(self.blogs):
             first = Rating.objects.filter(blog=bl)
             if first.count() < threshold:
@@ -119,45 +122,89 @@ class Calculations:
             for j, inner_bl in enumerate(self.blogs):
                 positive_both = 0
                 positive_inner_neg_outer = 0
-                for us in users:
+                for us in self.users:
                     r = us.rating_set.all()
                     if r.filter(general_ratings=2, blog__in=[inner_bl, bl]).count() == 2:
                         positive_both += 1
                     if r.filter(general_ratings__in=[0,1], blog=bl).exists() and r.filter(general_ratings=2, blog=inner_bl).exists():
                         positive_inner_neg_outer += 1
-
-                numerator = positive_both/positive_outer
-                denominator = positive_inner_neg_outer/(all-positive_outer)
-                self.liking_matrix[i, j] = numerator/denominator
+                try:
+                    numerator = positive_both/positive_outer
+                    denominator = positive_inner_neg_outer/(all-positive_outer)
+                    self.liking_matrix[i, j] = numerator/denominator
+                except ZeroDivisionError:
+                    self.liking_matrix[i, j] = 0
 
 
     def predict_rating(self, blog, user):
         user_coef = UserFollowings.objects.get(user=user).get_fields_arr()
+        x = np.asarray([1] + list(user_coef))
         weights = blog.retrieve_coefficients()
-        scores = np.dot(user_coef, weights.T)
+        scores = np.dot(x, weights.T)
+        escores = np.exp(scores)
+        scores = escores/np.sum(escores)
         #weighted average of user ratings
         loc = dict( [ reversed(i) for i in self.user_dict.items() ] )[user.id]
-        where_pos_rat = np.where(self.user_rating_matrix[loc, ] > 0)
-        where_pos_coef = np.where(self.user_coef_matrix[loc, ] > 0)
-        weights_ratings = np.asarray( [(Rating.objects.get(user_id=self.user_dict[i]).general_ratings, self.user_rating_matrix[loc, i] ) for i in where_pos_rat] )
-        score_ratings = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+        where_pos_rat = np.where(self.user_rating_matrix[loc, ] > 0)[0]
+        where_pos_coef = np.where(self.user_coef_matrix[loc, ] > 0)[0]
+        r = Rating.objects.filter(blog_id = blog.id)
+        if len(where_pos_rat) > 0:
+            weights_ratings = np.asarray( [(r.get(user_id=self.user_dict[i]).general_ratings, self.user_rating_matrix[loc, i] )
+                                           for i in where_pos_rat if r.filter(user_id=self.user_dict[i]).exists() ] )
+            print("weight rating", weights_ratings)
 
-        weights_ratings = np.asarray( [(Rating.objects.get(user_id=self.user_dict[i]).general_ratings, self.user_coef_matrix[loc, i] ) for i in where_pos_coef] )
-        score_coefs = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+            if len(weights_ratings) > 0:
+                score_ratings = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+            else:
+                score_ratings = np.mean(np.asarray(r.values_list('general_ratings')))
+        else:
+            score_ratings = np.mean(np.asarray(r.values_list('general_ratings')))
 
-        if not PredictRating.object.filter(blog=blog, user=user).exists():
-            c = PredictRating(blog=blog, user=user, rating=np.mean(np.argmax(scores), score_ratings, score_coefs))
+        if len(where_pos_coef) > 0:
+            weights_ratings = np.asarray( [(r.get(user_id=self.user_dict[i]).general_ratings, self.user_coef_matrix[loc, i] )
+                                           for i in where_pos_coef if r.filter(user_id=self.user_dict[i]).exists()] )
+
+            if len(weights_ratings) > 0:
+                score_coefs = np.average(weights_ratings[:, 0], weights=weights_ratings[:, 1])
+            else:
+                score_coefs = np.mean(np.asarray(r.values_list('general_ratings')))
+        else:
+            score_coefs = np.mean(np.asarray(r.values_list('general_ratings')))
+
+        if not PredictRating.objects.filter(blog=blog, user=user).exists():
+            c = PredictRating(blog=blog, user=user, rating=np.mean([np.argmax(scores), score_ratings, score_coefs]))
             c.save()
         else:
-            c = PredictRating.object.get(blog=blog, user=user)
-            c.rating = np.mean(np.argmax(scores), score_coefs, score_ratings)
+            c = PredictRating.objects.get(blog=blog, user=user)
+            c.rating = np.mean([np.argmax(scores), score_coefs, score_ratings])
             c.save()
+
+    def was_calculated_recently(self):
+        if timezone.now() - timezone.timedelta(days=7) > self.last_eval:
+            self.last_eval = timezone.now()
+            self.save()
+            return False
+        else:
+            return True
+
+    def execute(self):
+        print("its happening")
+        self.init()
+        self.calc_user_matrices()
+        self.calc_blog_matrix()
+        self.blog_regression()
+        self.users_who_liked_also_liked()
+
+        for us in self.users:
+            for bl in self.blogs:
+                if not Rating.objects.filter(blog=bl, user=us).exists():
+                    self.predict_rating(blog=bl, user=us)
 
 
 
 class PredictRating(models.Model):
-    blog = models.OneToOneField(Blog)
-    user = models.OneToOneField(User)
+    blog = models.ForeignKey(Blog)
+    user = models.ForeignKey(User)
     rating = models.FloatField()
 
 class RecommendationUser(models.Model):

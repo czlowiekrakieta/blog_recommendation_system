@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from blogs.models import Blog
 from django.db.models import Q
 
-threshold = 3
+threshold = 15
 
 def blog_and_user(request, pk=None):
     return request.user, get_object_or_404(Blog, id=pk)

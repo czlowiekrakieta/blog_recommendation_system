@@ -3,18 +3,20 @@ from blogs.models import Blog, UserFollowings, Rating
 import os
 from django.db.models import Count, Q
 from .forms import RatingForm, NewBlogForm, SearchForm, AdvSearchForm
-from recommendations import models as rec_models
-from recommendations.models import RecommendationBlog, RecommendationUser, MostPopularByCat#, LinearRegression
+import recommendations.tasks as rt
+from recommendations.models import RecommendationBlog, RecommendationUser, MostPopularByCat, Calculations, PredictRating
 from comments.forms import CommentForm, VoteForm
 from accounts.forms import UserLoginForm, UserLogoutForm
 from blogs.models import fields, Rating
 from comments.models import Comment
 from accounts.views import merge_timestamp
 from django.db.models import Count
-from time import time
 from blogboard.common import blog_and_user, ugly_filtering
 import django_rq
 templates_location = os.path.join(os.path.dirname(os.path.dirname(__file__)).rstrip("/blogs"), "templates")
+
+
+
 
 def blog_search_list(request):
     searchform = SearchForm(request.GET or None)
@@ -44,6 +46,8 @@ def blog_adv_search_list(request):
 def blog_detail(request, pk=None):
 
     current_user, instance = blog_and_user(request, pk=pk)
+
+
 
     rate_form = RatingForm(request.POST or None)
     comment_form = CommentForm(request.POST or None)
@@ -110,6 +114,9 @@ def blog_detail(request, pk=None):
         context_data['logout_form'] = logout_form
         if Rating.objects.filter(user=current_user, blog=instance).exists():
             context_data['user_rate'] = Rating.objects.get(user=current_user, blog=instance)
+        else:
+            predicted_rating = PredictRating.objects.get(blog=instance, user=current_user).rating
+            context_data['predict'] = predicted_rating
 
     else:
         context_data['login_form'] = login_form
@@ -207,7 +214,6 @@ def main_page(request):
         comments = comments.order_by("-timestamp")
         show_list = merge_timestamp(ratings, comments)
 
-        foll_likes = rec_models.followed_users_liked(instance)
 
         context_data = {
             'logged': True,
@@ -216,7 +222,6 @@ def main_page(request):
             "followingusers": followed_users,
             'logout_form': logout_form,
             'show_list': show_list,
-            'foll_likes':foll_likes
         }
 
     else:
@@ -250,6 +255,8 @@ def main_page(request):
     dict_pop = dict(zip(fields[1:], s[1:]))
     context_data['cat_popularity'] = dict_pop
     context_data['searchform'] = searchform
+
+    t = rt.calculate_things.delay()
 
 
     return render(request, templates_location+"/main.html", context_data)
